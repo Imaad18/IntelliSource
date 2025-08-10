@@ -1,1 +1,8 @@
-pip install streamlit transformers torch requests beautifulsoup4 plotly pandas networkx nltk
+streamlit==1.28.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+pandas==2.0.3
+plotly==5.17.0
+nltk==3.8.1
+networkx==3.1
+lxml==4.9.3
