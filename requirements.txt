@@ -1,0 +1,1 @@
+pip install streamlit transformers torch requests beautifulsoup4 plotly pandas networkx nltk
