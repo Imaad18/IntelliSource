@@ -1,710 +1,1006 @@
-# Advanced Autonomous Research Agent
-# This will be BETTER than ChatGPT/Grok for research
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import asyncio
 from datetime import datetime
 import re
 import json
 from urllib.parse import urljoin, urlparse
 import time
 from collections import Counter
-import networkx as nx
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
 
-# Simple text processing without heavy ML dependencies
-import nltk
-try:
-    nltk.download('punkt', quiet=True)
-    nltk.download('stopwords', quiet=True)
-    from nltk.corpus import stopwords
-    from nltk.tokenize import sent_tokenize
-    STOPWORDS = set(stopwords.words('english'))
-except:
-    # Fallback if NLTK fails
-    STOPWORDS = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might', 'must', 'shall', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them'}
-    sent_tokenize = lambda x: re.split(r'[.!?]+', x)
-
-class AdvancedResearchAgent:
+class IntelliSourceEngine:
+    """Advanced AI Research Engine - Better than GPT for research"""
+    
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         })
+        self.processed_urls = set()
+        self.research_cache = {}
         
-        # Initialize research components
-        self.research_graph = nx.DiGraph()
-        self.fact_database = {}
-        self.source_credibility = {}
+    def intelligent_search(self, query, num_results=15):
+        """Multi-engine search with smart URL discovery"""
+        search_results = []
+        
+        # Strategy 1: Wikipedia for authoritative baseline
+        wiki_url = f"https://en.wikipedia.org/wiki/{query.replace(' ', '_')}"
+        search_results.append(wiki_url)
+        
+        # Strategy 2: News and recent content
+        news_sources = [
+            f"https://www.reuters.com/search/?query={'+'.join(query.split())}",
+            f"https://techcrunch.com/?s={'+'.join(query.split())}",
+            f"https://www.nature.com/search?q={'+'.join(query.split())}"
+        ]
+        search_results.extend(news_sources)
+        
+        # Strategy 3: Academic and research sources
+        academic_sources = [
+            f"https://arxiv.org/search/?query={'+'.join(query.split())}&searchtype=all",
+            f"https://scholar.google.com/scholar?q={'+'.join(query.split())}"
+        ]
+        search_results.extend(academic_sources)
+        
+        # Strategy 4: Domain-specific intelligent URLs
+        query_keywords = query.lower().split()
+        
+        if any(word in query_keywords for word in ['ai', 'artificial', 'intelligence', 'machine', 'learning']):
+            search_results.extend([
+                "https://openai.com/research/",
+                "https://www.anthropic.com/research",
+                "https://deepmind.google/research/",
+                "https://ai.googleblog.com/"
+            ])
+        
+        if any(word in query_keywords for word in ['technology', 'tech', 'innovation']):
+            search_results.extend([
+                "https://techcrunch.com/category/artificial-intelligence/",
+                "https://www.wired.com/tag/artificial-intelligence/",
+                "https://www.technologyreview.com/topic/artificial-intelligence/"
+            ])
+        
+        return list(dict.fromkeys(search_results))[:num_results]  # Remove duplicates, keep order
     
-    def search_web(self, query, num_results=10):
-        """Smart web search using multiple search engines"""
-        search_urls = []
-        
-        # DuckDuckGo search (no API key needed)
+    def advanced_content_extraction(self, url):
+        """Military-grade content extraction with intelligence"""
         try:
-            search_url = f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
-            response = self.session.get(search_url, timeout=10)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            for link in soup.find_all('a', href=True)[:num_results]:
-                href = link['href']
-                if href.startswith('//duckduckgo.com/l/?uddg='):
-                    # Extract actual URL from DuckDuckGo redirect
-                    actual_url = requests.utils.unquote(href.split('uddg=')[1].split('&')[0])
-                    if actual_url.startswith('http'):
-                        search_urls.append(actual_url)
-        except Exception as e:
-            st.warning(f"Search error: {e}")
-        
-        # Fallback: Use predefined quality sources
-        if not search_urls:
-            search_urls = [
-                f"https://en.wikipedia.org/wiki/{query.replace(' ', '_')}",
-                f"https://scholar.google.com/scholar?q={query.replace(' ', '+')}",
-                f"https://www.nature.com/search?q={query.replace(' ', '+')}"
-            ]
-        
-        return search_urls[:num_results]
-    
-    def extract_advanced_content(self, url):
-        """Advanced content extraction with metadata"""
-        try:
-            response = self.session.get(url, timeout=15)
+            response = self.session.get(url, timeout=12, allow_redirects=True)
             response.raise_for_status()
+            
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Remove unwanted elements
-            for element in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
-                element.decompose()
+            # Intelligent content extraction
+            content_data = self._extract_structured_content(soup, url)
             
-            # Extract metadata
-            title = soup.find('title')
-            title = title.text.strip() if title else "Unknown Title"
+            # Advanced analysis
+            content_data.update({
+                'credibility_score': self._calculate_advanced_credibility(url, content_data),
+                'content_quality': self._assess_content_quality(content_data),
+                'key_entities': self._extract_entities(content_data['content']),
+                'timestamp': datetime.now().isoformat(),
+                'processing_time': time.time()
+            })
             
-            meta_desc = soup.find('meta', attrs={'name': 'description'})
-            description = meta_desc.get('content', '') if meta_desc else ''
-            
-            # Extract main content intelligently
-            content_selectors = ['main', 'article', '.content', '#content', '.post-content']
-            main_content = None
-            
-            for selector in content_selectors:
-                main_content = soup.select_one(selector)
-                if main_content:
-                    break
-            
-            if not main_content:
-                main_content = soup.find('body')
-            
-            # Extract text and links
-            text = main_content.get_text(separator=' ', strip=True) if main_content else ''
-            links = [urljoin(url, a.get('href')) for a in soup.find_all('a', href=True)]
-            
-            # Content quality metrics
-            word_count = len(text.split())
-            sentence_count = len(re.split(r'[.!?]+', text))
-            
-            return {
-                'url': url,
-                'title': title,
-                'description': description,
-                'content': text[:5000],  # Limit for processing
-                'word_count': word_count,
-                'sentence_count': sentence_count,
-                'links': links[:20],  # Top 20 links
-                'credibility_score': self.assess_credibility(url, title, text),
-                'timestamp': datetime.now().isoformat()
-            }
+            return content_data
             
         except Exception as e:
             return {
                 'url': url,
                 'error': str(e),
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'credibility_score': 0
             }
     
-    def assess_credibility(self, url, title, content):
-        """Assess source credibility"""
-        score = 50  # Base score
+    def _extract_structured_content(self, soup, url):
+        """Extract content with advanced structural understanding"""
+        # Remove noise
+        for element in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'noscript']):
+            element.decompose()
         
-        # Domain-based scoring
-        domain = urlparse(url).netloc.lower()
+        # Extract metadata
+        title = self._extract_title(soup)
+        description = self._extract_description(soup)
         
-        trusted_domains = ['wikipedia.org', 'nature.com', 'science.org', 'ieee.org', 'acm.org']
-        news_domains = ['reuters.com', 'bbc.com', 'npr.org', 'ap.org']
-        academic_domains = ['.edu', '.gov']
+        # Smart content selection
+        main_content = self._find_main_content(soup)
         
-        if any(trusted in domain for trusted in trusted_domains):
-            score += 30
-        elif any(news in domain for news in news_domains):
-            score += 20
-        elif any(academic in domain for academic in academic_domains):
-            score += 25
+        # Extract text with structure preservation
+        paragraphs = []
+        for p in main_content.find_all(['p', 'div'], limit=50):
+            text = p.get_text(strip=True)
+            if len(text) > 30:  # Meaningful paragraphs only
+                paragraphs.append(text)
         
-        # Content-based scoring
-        if len(content.split()) > 500:
-            score += 10
-        if re.search(r'\d{4}', title):  # Has year in title
-            score += 5
-        if 'research' in content.lower() or 'study' in content.lower():
-            score += 10
+        content = ' '.join(paragraphs)
         
-        return min(score, 100)
-    
-    def ai_summarize(self, content, focus_topic):
-        """Advanced AI summarization"""
-        if not self.summarizer:
-            # Fallback: Extractive summarization
-            sentences = re.split(r'[.!?]+', content)
-            topic_words = focus_topic.lower().split()
-            
-            scored_sentences = []
-            for sentence in sentences:
-                if len(sentence.strip()) > 20:
-                    score = sum(1 for word in topic_words if word in sentence.lower())
-                    scored_sentences.append((score, sentence.strip()))
-            
-            scored_sentences.sort(reverse=True)
-            return '. '.join([sent[1] for sent in scored_sentences[:3]])
-        
-        try:
-            # Use transformer model for better summarization
-            summary = self.summarizer(content[:1000], max_length=150, min_length=50, do_sample=False)
-            return summary[0]['summary_text']
-        except:
-            return content[:300] + "..."
-    
-    def find_related_links(self, content, original_links):
-        """Find most relevant links for deeper research"""
-        if not original_links:
-            return []
-        
-        # Score links based on context
-        scored_links = []
-        content_words = set(content.lower().split())
-        
-        for link in original_links:
-            link_text = urlparse(link).path.lower()
-            link_score = sum(1 for word in content_words if word in link_text)
-            
-            # Prefer certain types of links
-            if any(domain in link for domain in ['research', 'study', 'report', 'analysis']):
-                link_score += 5
-            
-            if link_score > 0:
-                scored_links.append((link_score, link))
-        
-        scored_links.sort(reverse=True)
-        return [link[1] for link in scored_links[:5]]
-    
-    def autonomous_research(self, topic, max_depth=2, max_sources=15):
-        """Fully autonomous research with depth"""
-        research_results = {
-            'topic': topic,
-            'sources': [],
-            'insights': [],
-            'fact_network': {},
-            'credibility_analysis': {},
-            'research_path': []
-        }
-        
-        # Level 1: Initial search and analysis
-        st.write(f"🚀 **Starting autonomous research on: {topic}**")
-        
-        initial_urls = self.search_web(topic, 5)
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        analyzed_urls = set()
-        to_analyze = initial_urls.copy()
-        
-        for depth in range(max_depth):
-            st.write(f"🔍 **Research Depth Level {depth + 1}**")
-            
-            current_batch = to_analyze[:max_sources]
-            to_analyze = []
-            
-            for i, url in enumerate(current_batch):
-                if url in analyzed_urls or len(research_results['sources']) >= max_sources:
-                    continue
-                
-                status_text.text(f"Analyzing: {url[:50]}...")
-                progress = (i + 1) / len(current_batch)
-                progress_bar.progress(progress)
-                
-                # Extract content
-                extracted = self.extract_advanced_content(url)
-                
-                if 'error' not in extracted:
-                    # AI-powered analysis
-                    summary = self.ai_summarize(extracted['content'], topic)
-                    
-                    # Find insights and facts
-                    insights = self.extract_insights(extracted['content'], topic)
-                    
-                    # Store results
-                    source_data = {
-                        **extracted,
-                        'summary': summary,
-                        'insights': insights,
-                        'depth_level': depth + 1
-                    }
-                    
-                    research_results['sources'].append(source_data)
-                    research_results['credibility_analysis'][url] = extracted['credibility_score']
-                    
-                    # Find related links for next depth level
-                    if depth < max_depth - 1:
-                        related_links = self.find_related_links(extracted['content'], extracted.get('links', []))
-                        to_analyze.extend(related_links)
-                
-                analyzed_urls.add(url)
-                time.sleep(0.5)  # Rate limiting
-        
-        # Generate final insights
-        research_results['final_analysis'] = self.generate_insights(research_results)
-        research_results['research_quality_score'] = self.calculate_research_quality(research_results)
-        
-        return research_results
-    
-    def extract_insights(self, content, topic):
-        """Extract key insights using NLP"""
-        insights = []
-        
-        # Find statistics and numbers
-        stats = re.findall(r'\d+(?:\.\d+)?%?(?:\s*(?:billion|million|thousand|percent|%))', content)
-        if stats:
-            insights.extend([f"Key statistic: {stat}" for stat in stats[:3]])
-        
-        # Find trends and predictions
-        trend_patterns = [
-            r'(?:by|in|until)\s+20\d{2}',
-            r'(?:increasing|decreasing|growing|declining)\s+(?:by|at)\s+\d+',
-            r'(?:expected|projected|anticipated)\s+to\s+\w+'
-        ]
-        
-        for pattern in trend_patterns:
-            matches = re.findall(pattern, content, re.IGNORECASE)
-            insights.extend([f"Trend: {match}" for match in matches[:2]])
-        
-        return insights[:5]
-    
-    def generate_insights(self, research_data):
-        """Generate high-level insights from all research"""
-        all_insights = []
-        high_credibility_sources = []
-        
-        for source in research_data['sources']:
-            all_insights.extend(source.get('insights', []))
-            if source.get('credibility_score', 0) > 70:
-                high_credibility_sources.append(source)
+        # Extract outbound links
+        links = self._extract_quality_links(soup, url)
         
         return {
-            'total_sources_analyzed': len(research_data['sources']),
-            'high_credibility_sources': len(high_credibility_sources),
-            'key_insights': all_insights[:10],
-            'average_credibility': sum(research_data['credibility_analysis'].values()) / len(research_data['credibility_analysis']) if research_data['credibility_analysis'] else 0
+            'url': url,
+            'title': title,
+            'description': description,
+            'content': content[:4000],  # Manageable size
+            'paragraph_count': len(paragraphs),
+            'word_count': len(content.split()),
+            'links': links,
+            'domain': urlparse(url).netloc
         }
     
-    def calculate_research_quality(self, research_data):
-        """Calculate overall research quality score"""
-        if not research_data['sources']:
+    def _extract_title(self, soup):
+        """Smart title extraction"""
+        title_sources = [
+            soup.find('title'),
+            soup.find('h1'),
+            soup.find('meta', property='og:title'),
+            soup.find('meta', attrs={'name': 'title'})
+        ]
+        
+        for source in title_sources:
+            if source:
+                if source.name == 'meta':
+                    title = source.get('content', '')
+                else:
+                    title = source.get_text(strip=True)
+                
+                if title and len(title.strip()) > 5:
+                    return title.strip()[:200]
+        
+        return "Unknown Title"
+    
+    def _extract_description(self, soup):
+        """Smart description extraction"""
+        desc_sources = [
+            soup.find('meta', attrs={'name': 'description'}),
+            soup.find('meta', property='og:description'),
+            soup.find('meta', attrs={'name': 'twitter:description'})
+        ]
+        
+        for source in desc_sources:
+            if source:
+                desc = source.get('content', '').strip()
+                if desc and len(desc) > 10:
+                    return desc[:300]
+        
+        return ""
+    
+    def _find_main_content(self, soup):
+        """Intelligently find the main content area"""
+        content_selectors = [
+            'main', 'article', '[role="main"]',
+            '.content', '#content', '.post-content', '.entry-content',
+            '.article-content', '.story-content', '#main-content'
+        ]
+        
+        for selector in content_selectors:
+            main_content = soup.select_one(selector)
+            if main_content and len(main_content.get_text(strip=True)) > 200:
+                return main_content
+        
+        # Fallback: find the largest content block
+        content_blocks = soup.find_all(['div', 'section'], limit=20)
+        if content_blocks:
+            largest_block = max(content_blocks, key=lambda x: len(x.get_text(strip=True)))
+            if len(largest_block.get_text(strip=True)) > 100:
+                return largest_block
+        
+        return soup.find('body') or soup
+    
+    def _extract_quality_links(self, soup, base_url):
+        """Extract high-quality outbound links"""
+        links = []
+        domain = urlparse(base_url).netloc
+        
+        for a in soup.find_all('a', href=True, limit=30):
+            href = a.get('href')
+            link_text = a.get_text(strip=True)
+            
+            if not href or len(link_text) < 5:
+                continue
+            
+            full_url = urljoin(base_url, href)
+            link_domain = urlparse(full_url).netloc
+            
+            # Quality filters
+            if (len(link_text) > 100 or  # Too long
+                link_domain == domain or  # Same domain
+                not full_url.startswith('http') or  # Invalid URL
+                any(skip in full_url.lower() for skip in ['pdf', 'jpg', 'png', 'gif', 'mp4'])):  # Media files
+                continue
+            
+            # Prioritize academic and research links
+            quality_score = 0
+            if any(word in link_text.lower() for word in ['research', 'study', 'analysis', 'report']):
+                quality_score += 3
+            if any(domain in link_domain for domain in ['.edu', '.gov', 'nature.com', 'science.org']):
+                quality_score += 2
+            
+            links.append({
+                'url': full_url,
+                'text': link_text,
+                'quality_score': quality_score
+            })
+        
+        # Sort by quality and return top links
+        links.sort(key=lambda x: x['quality_score'], reverse=True)
+        return [link['url'] for link in links[:10]]
+    
+    def _calculate_advanced_credibility(self, url, content_data):
+        """Advanced credibility assessment algorithm"""
+        score = 50  # Base score
+        domain = urlparse(url).netloc.lower()
+        content = content_data.get('content', '')
+        title = content_data.get('title', '')
+        
+        # Domain authority scoring
+        if any(trusted in domain for trusted in ['wikipedia.org', 'nature.com', 'science.org', 'ieee.org']):
+            score += 35
+        elif any(news in domain for news in ['reuters.com', 'bbc.com', 'npr.org', 'ap.org']):
+            score += 25
+        elif any(academic in domain for academic in ['.edu', '.gov', 'arxiv.org']):
+            score += 30
+        elif any(tech in domain for tech in ['openai.com', 'anthropic.com', 'deepmind.com']):
+            score += 25
+        
+        # Content quality indicators
+        if content_data.get('word_count', 0) > 500:
+            score += 10
+        if content_data.get('paragraph_count', 0) > 5:
+            score += 5
+        
+        # Authority signals in content
+        authority_signals = ['research', 'study', 'analysis', 'published', 'peer-reviewed', 'doi:', 'citation']
+        signal_count = sum(1 for signal in authority_signals if signal in content.lower())
+        score += min(signal_count * 3, 15)
+        
+        # Recency indicators
+        current_year = datetime.now().year
+        if str(current_year) in title or str(current_year) in content:
+            score += 10
+        elif str(current_year - 1) in title or str(current_year - 1) in content:
+            score += 5
+        
+        # Penalize certain patterns
+        if any(spam in content.lower() for spam in ['click here', 'buy now', 'limited time']):
+            score -= 10
+        
+        return max(min(score, 100), 0)
+    
+    def _assess_content_quality(self, content_data):
+        """Assess overall content quality"""
+        content = content_data.get('content', '')
+        
+        if not content:
             return 0
         
-        credibility_score = sum(research_data['credibility_analysis'].values()) / len(research_data['credibility_analysis'])
-        source_diversity = len(set(urlparse(s['url']).netloc for s in research_data['sources']))
-        content_depth = sum(s['word_count'] for s in research_data['sources']) / len(research_data['sources'])
+        words = content.split()
+        unique_words = set(words)
         
-        quality_score = (credibility_score * 0.4 + 
-                        min(source_diversity * 10, 50) * 0.3 + 
-                        min(content_depth / 100, 50) * 0.3)
+        quality_metrics = {
+            'length_score': min(len(words) / 500, 1) * 25,
+            'diversity_score': min(len(unique_words) / len(words), 0.8) * 25 if words else 0,
+            'structure_score': min(content_data.get('paragraph_count', 0) / 10, 1) * 25,
+            'readability_score': self._calculate_readability(content) * 25
+        }
         
-        return min(quality_score, 100)
+        return sum(quality_metrics.values())
+    
+    def _calculate_readability(self, text):
+        """Simple readability assessment"""
+        if not text:
+            return 0
+        
+        sentences = re.split(r'[.!?]+', text)
+        words = text.split()
+        
+        if not sentences or not words:
+            return 0
+        
+        avg_sentence_length = len(words) / len(sentences)
+        optimal_length = 20  # Optimal words per sentence
+        
+        # Score based on how close to optimal
+        if avg_sentence_length <= optimal_length:
+            return avg_sentence_length / optimal_length
+        else:
+            return max(0, 1 - (avg_sentence_length - optimal_length) / optimal_length)
+    
+    def _extract_entities(self, content):
+        """Extract key entities without heavy NLP libraries"""
+        if not content:
+            return []
+        
+        # Simple but effective entity extraction
+        entities = []
+        
+        # Find years
+        years = re.findall(r'\b(19|20)\d{2}\b', content)
+        entities.extend([f"Year: {year}" for year in set(years)])
+        
+        # Find percentages and numbers
+        percentages = re.findall(r'\d+(?:\.\d+)?%', content)
+        entities.extend([f"Stat: {pct}" for pct in set(percentages)])
+        
+        # Find organizations (simple heuristic)
+        org_patterns = [
+            r'\b[A-Z][a-z]+ (?:University|Institute|Corporation|Company|Inc|LLC)\b',
+            r'\b(?:Google|Microsoft|Apple|Amazon|Facebook|Meta|OpenAI|Anthropic|DeepMind)\b'
+        ]
+        
+        for pattern in org_patterns:
+            orgs = re.findall(pattern, content)
+            entities.extend([f"Org: {org}" for org in set(orgs)])
+        
+        return entities[:10]
+    
+    def neural_summarization(self, content, topic, max_sentences=3):
+        """Advanced summarization using neural-inspired algorithms"""
+        if not content or len(content.strip()) < 50:
+            return "Insufficient content for meaningful analysis."
+        
+        # Tokenize sentences
+        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 20]
+        
+        if not sentences:
+            return "No analyzable sentences found."
+        
+        # Advanced scoring algorithm
+        topic_words = set(topic.lower().split())
+        scored_sentences = []
+        
+        for i, sentence in enumerate(sentences):
+            words = set(re.findall(r'\w+', sentence.lower()))
+            
+            # Multiple intelligence factors
+            relevance_score = len(words.intersection(topic_words)) * 3
+            position_score = max(0, 1 - i/len(sentences)) * 2  # Earlier = better
+            length_score = min(len(words) / 25, 1) * 1.5  # Optimal length
+            
+            # Semantic importance indicators
+            importance_words = ['research', 'study', 'analysis', 'findings', 'results', 'conclusion', 
+                              'data', 'evidence', 'significant', 'important', 'key', 'main', 'primary']
+            importance_score = sum(2 for word in importance_words if word in sentence.lower())
+            
+            # Technical depth indicators
+            tech_words = ['algorithm', 'model', 'system', 'method', 'approach', 'technique', 'technology']
+            tech_score = sum(1.5 for word in tech_words if word in sentence.lower())
+            
+            # Avoid promotional/marketing content
+            spam_words = ['buy', 'purchase', 'sale', 'offer', 'deal', 'discount', 'free trial']
+            spam_penalty = sum(3 for word in spam_words if word in sentence.lower())
+            
+            total_score = relevance_score + position_score + length_score + importance_score + tech_score - spam_penalty
+            
+            if total_score > 2:  # Minimum threshold
+                scored_sentences.append((total_score, sentence, i))
+        
+        # Smart selection strategy
+        if not scored_sentences:
+            return "No relevant content identified for this topic."
+        
+        # Sort by score but ensure diversity
+        scored_sentences.sort(reverse=True)
+        selected = []
+        used_positions = set()
+        
+        for score, sentence, pos in scored_sentences:
+            # Avoid selecting sentences too close together
+            if not any(abs(pos - used_pos) < 3 for used_pos in used_positions):
+                selected.append(sentence)
+                used_positions.add(pos)
+                if len(selected) >= max_sentences:
+                    break
+        
+        return '. '.join(selected)
+    
+    def parallel_research(self, topic, urls, max_workers=5):
+        """Parallel processing for faster research"""
+        results = []
+        
+        def analyze_single_url(url):
+            if url in self.processed_urls:
+                return None
+            
+            self.processed_urls.add(url)
+            return self.advanced_content_extraction(url)
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {executor.submit(analyze_single_url, url): url for url in urls}
+            
+            for future in future_to_url:
+                try:
+                    result = future.result(timeout=15)
+                    if result and 'error' not in result:
+                        # Add intelligent summary
+                        result['ai_summary'] = self.neural_summarization(
+                            result['content'], topic
+                        )
+                        results.append(result)
+                except Exception as e:
+                    st.warning(f"Analysis timeout for: {future_to_url[future]}")
+        
+        return results
+    
+    def cross_reference_facts(self, research_results):
+        """Cross-reference facts across sources for verification"""
+        fact_mentions = {}
+        
+        for result in research_results:
+            content = result.get('content', '')
+            
+            # Extract statistical claims
+            stats = re.findall(r'\d+(?:\.\d+)?(?:%|\s*percent|\s*billion|\s*million|\s*thousand)', content)
+            
+            for stat in stats:
+                normalized_stat = re.sub(r'\s+', ' ', stat.strip())
+                if normalized_stat in fact_mentions:
+                    fact_mentions[normalized_stat]['count'] += 1
+                    fact_mentions[normalized_stat]['sources'].append(result['url'])
+                else:
+                    fact_mentions[normalized_stat] = {
+                        'count': 1, 
+                        'sources': [result['url']],
+                        'credibility': result.get('credibility_score', 0)
+                    }
+        
+        # Return verified facts (mentioned in multiple sources)
+        verified_facts = {
+            fact: data for fact, data in fact_mentions.items() 
+            if data['count'] > 1 or data['credibility'] > 80
+        }
+        
+        return verified_facts
+    
+    def generate_insights(self, research_results, topic):
+        """Generate intelligent insights from research"""
+        if not research_results:
+            return {}
+        
+        insights = {
+            'key_statistics': [],
+            'main_findings': [],
+            'source_consensus': {},
+            'knowledge_gaps': [],
+            'research_quality': self._assess_research_quality(research_results)
+        }
+        
+        # Extract key statistics
+        all_content = ' '.join([r.get('content', '') for r in research_results])
+        stats = re.findall(r'\d+(?:\.\d+)?(?:%|\s*percent|\s*billion|\s*million)', all_content)
+        insights['key_statistics'] = list(set(stats))[:10]
+        
+        # Analyze source consensus
+        high_cred_sources = [r for r in research_results if r.get('credibility_score', 0) > 70]
+        insights['source_consensus'] = {
+            'high_credibility_sources': len(high_cred_sources),
+            'total_sources': len(research_results),
+            'consensus_strength': len(high_cred_sources) / len(research_results) * 100
+        }
+        
+        # Main findings from highest credibility sources
+        for result in sorted(research_results, key=lambda x: x.get('credibility_score', 0), reverse=True)[:5]:
+            summary = result.get('ai_summary', '')
+            if summary and len(summary) > 50:
+                insights['main_findings'].append({
+                    'finding': summary,
+                    'source': result['title'],
+                    'credibility': result.get('credibility_score', 0)
+                })
+        
+        return insights
+    
+    def _assess_research_quality(self, results):
+        """Comprehensive research quality assessment"""
+        if not results:
+            return 0
+        
+        metrics = {
+            'source_diversity': len(set(r.get('domain', '') for r in results)) / len(results) * 25,
+            'average_credibility': sum(r.get('credibility_score', 0) for r in results) / len(results) * 0.25,
+            'content_depth': min(sum(r.get('word_count', 0) for r in results) / len(results) / 200, 1) * 25,
+            'source_count': min(len(results) / 10, 1) * 25
+        }
+        
+        return sum(metrics.values())
 
-def create_streamlit_app():
-    """Advanced Streamlit interface"""
+def create_intellisource_app():
+    """IntelliSource Streamlit Application"""
+    
     st.set_page_config(
-        page_title="IntelliSource - AI Research Agent",
+        page_title="IntelliSource - Advanced AI Research Agent",
         page_icon="🧠",
         layout="wide",
         initial_sidebar_state="expanded"
     )
     
-    # Custom CSS for professional IntelliSource branding
+    # Professional IntelliSource styling
     st.markdown("""
     <style>
-    .main-header {
-        font-size: 3.5rem;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    .intellisource-header {
+        font-size: 4rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        font-weight: bold;
-        margin-bottom: 1rem;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-weight: 900;
+        margin-bottom: 0.5rem;
+        font-family: 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+        letter-spacing: -0.02em;
     }
     .tagline {
-        text-align: center; 
-        font-size: 1.3rem; 
+        text-align: center;
+        font-size: 1.4rem;
         color: #555;
         margin-bottom: 2rem;
         font-weight: 300;
     }
+    .power-badge {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        color: white;
+        padding: 0.4rem 1rem;
+        border-radius: 25px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        display: inline-block;
+        margin: 0.5rem;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
+        padding: 1.5rem;
+        border-radius: 15px;
         color: white;
         text-align: center;
         margin: 0.5rem 0;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(255,255,255,0.1);
     }
-    .insight-box {
-        border-left: 4px solid #667eea;
-        padding: 1rem;
-        background-color: #f8f9fa;
+    .insight-card {
+        border-left: 5px solid #667eea;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         margin: 1rem 0;
-        border-radius: 0 8px 8px 0;
+        border-radius: 0 10px 10px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     }
-    .intellisource-badge {
-        background: linear-gradient(45deg, #667eea, #764ba2);
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: bold;
-        display: inline-block;
+    .source-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        background: white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .credibility-bar {
+        height: 8px;
+        border-radius: 4px;
         margin: 0.5rem 0;
     }
+    .high-credibility { background: linear-gradient(90deg, #28a745, #20c997); }
+    .medium-credibility { background: linear-gradient(90deg, #ffc107, #fd7e14); }
+    .low-credibility { background: linear-gradient(90deg, #dc3545, #e83e8c); }
     </style>
     """, unsafe_allow_html=True)
     
-    # Header with IntelliSource branding
-    st.markdown('<h1 class="main-header">🧠 IntelliSource</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="tagline">Advanced Autonomous AI Research Agent • Beyond ChatGPT & Grok</p>', unsafe_allow_html=True)
-    st.markdown('<div style="text-align: center;"><span class="intellisource-badge">🚀 Built by Imaad Mahmood</span></div>', unsafe_allow_html=True)
+    # IntelliSource Header
+    st.markdown('<h1 class="intellisource-header">🧠 IntelliSource</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="tagline">Advanced Autonomous AI Research Agent</p>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown('<div style="text-align: center;"><span class="power-badge">🚀 Beyond ChatGPT & Grok</span><span class="power-badge">⚡ Real-time Web Intelligence</span></div>', unsafe_allow_html=True)
     
     # Sidebar configuration
     with st.sidebar:
-        st.header("🔧 Research Configuration")
+        st.markdown("## 🎛️ Research Configuration")
         
         research_depth = st.selectbox(
-            "Research Depth",
+            "🔍 Research Depth",
             [1, 2, 3],
             index=1,
-            help="How many levels deep should the agent research?"
+            help="How many levels deep should IntelliSource research?"
         )
         
         max_sources = st.slider(
-            "Maximum Sources",
+            "📊 Maximum Sources",
             min_value=5,
-            max_value=25,
-            value=15,
-            help="Maximum number of sources to analyze"
+            max_value=20,
+            value=12,
+            help="Number of sources to analyze"
         )
         
-        analysis_focus = st.multiselect(
-            "Analysis Focus",
-            ["Statistics", "Trends", "Expert Opinions", "Recent Developments", "Controversies"],
-            default=["Statistics", "Trends"]
+        parallel_workers = st.slider(
+            "⚡ Parallel Workers",
+            min_value=3,
+            max_value=8,
+            value=5,
+            help="Concurrent analysis threads"
         )
         
         st.markdown("---")
-        st.markdown("### 🎯 Research Quality Targets")
-        st.markdown("- **Speed:** < 60 seconds")
-        st.markdown("- **Sources:** 15+ analyzed")
-        st.markdown("- **Credibility:** 80+ average")
-        st.markdown("- **Depth:** Multi-level analysis")
+        st.markdown("### 🏆 IntelliSource Advantages")
+        advantages = [
+            "🔍 Real-time web access",
+            "🧠 Neural summarization",
+            "⚖️ Advanced credibility scoring",
+            "📊 Interactive visualizations", 
+            "🔗 Autonomous link following",
+            "📈 Cross-source fact verification",
+            "⚡ Parallel processing",
+            "📋 Professional report export"
+        ]
+        
+        for adv in advantages:
+            st.markdown(f"✅ {adv}")
+        
+        st.markdown("---")
+        st.markdown("### 📈 Target Performance")
+        st.metric("Research Speed", "< 45 seconds")
+        st.metric("Avg Credibility", "85+/100") 
+        st.metric("Source Analysis", "12+ sources")
     
     # Main interface
-    col1, col2 = st.columns([2, 1])
+    st.markdown("## 🔍 Research Query")
+    
+    col1, col2 = st.columns([3, 1])
     
     with col1:
         research_query = st.text_input(
-            "🔍 Enter your research topic:",
-            placeholder="e.g., 'latest developments in quantum computing'",
-            help="Be specific for better results"
+            "",
+            placeholder="Enter your research topic (e.g., 'latest quantum computing breakthroughs')",
+            help="Be specific for more targeted results"
         )
-        
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            research_button = st.button("🚀 Start Research", type="primary", use_container_width=True)
-        with col_b:
-            if st.button("💡 Suggest Topics", use_container_width=True):
-                suggestions = [
-                    "artificial intelligence safety research 2025",
-                    "quantum computing breakthrough recent",
-                    "renewable energy technology advances",
-                    "biotech innovation gene therapy",
-                    "space exploration private companies"
-                ]
-                st.write("**Trending Research Topics:**")
-                for suggestion in suggestions:
-                    if st.button(f"📋 {suggestion}", key=suggestion):
-                        st.session_state.suggested_query = suggestion
-        with col_c:
-            export_button = st.button("📊 Export Results", use_container_width=True)
     
     with col2:
-        st.markdown("### 🏆 Why IntelliSource Beats ChatGPT/Grok")
-        st.markdown("""
-        ✅ **Real-time web access**  
-        ✅ **Multi-source fact checking**  
-        ✅ **Credibility scoring**  
-        ✅ **Interactive visualizations**  
-        ✅ **Professional report export**  
-        ✅ **Autonomous link following**  
-        ✅ **Source diversity analysis**
-        """)
-        
-        st.markdown("---")
-        st.markdown("### 📈 Research Quality")
-        st.markdown("**Target Metrics:**")
-        st.markdown("- Sources: 15+ analyzed")
-        st.markdown("- Speed: < 60 seconds") 
-        st.markdown("- Credibility: 80+ average")
-        st.markdown("- Depth: Multi-level")
-        
-        st.markdown("---")
-        st.markdown('<div style="text-align: center; font-size: 0.9rem; color: #888;">Powered by IntelliSource Engine v1.0</div>', unsafe_allow_html=True)
+        research_button = st.button("🚀 Start Research", type="primary", use_container_width=True)
     
-    # Handle suggested query
-    if 'suggested_query' in st.session_state:
-        research_query = st.session_state.suggested_query
-        del st.session_state.suggested_query
+    # Example queries
+    st.markdown("**💡 Example Queries:**")
+    examples = [
+        "artificial intelligence safety research 2025",
+        "quantum computing commercial applications", 
+        "renewable energy storage breakthroughs",
+        "gene therapy recent clinical trials",
+        "autonomous vehicle technology progress"
+    ]
+    
+    example_cols = st.columns(len(examples))
+    for i, example in enumerate(examples):
+        with example_cols[i]:
+            if st.button(f"📋 {example.split()[0].title()}", key=f"ex_{i}", help=example):
+                st.session_state['selected_query'] = example
+                st.rerun()
+    
+    # Handle example selection
+    if 'selected_query' in st.session_state:
+        research_query = st.session_state['selected_query']
+        del st.session_state['selected_query']
+        research_button = True
     
     # Research execution
     if research_button and research_query:
-        agent = AdvancedResearchAgent()
+        agent = IntelliSourceEngine()
         
-        with st.spinner("🤖 AI Agent is researching autonomously..."):
+        # Real-time research dashboard
+        st.markdown("---")
+        st.markdown("## 🤖 IntelliSource Research Engine Active")
+        
+        with st.container():
             start_time = time.time()
             
-            # Show real-time progress
-            progress_container = st.container()
+            # Phase 1: Intelligent URL Discovery
+            with st.status("🔍 **Phase 1:** Intelligent URL Discovery", expanded=True) as status:
+                st.write("Analyzing query and generating search strategy...")
+                search_urls = agent.intelligent_search(research_query, max_sources)
+                st.write(f"✅ Discovered {len(search_urls)} high-potential sources")
+                time.sleep(1)
             
-            with progress_container:
-                st.markdown("### 🔄 Research Progress")
-                research_results = agent.autonomous_research(
-                    research_query, 
-                    max_depth=research_depth,
-                    max_sources=max_sources
-                )
+            # Phase 2: Parallel Content Analysis  
+            with st.status("🧠 **Phase 2:** Parallel Content Analysis", expanded=True) as status:
+                st.write("Deploying parallel analysis workers...")
+                research_results = agent.parallel_research(research_query, search_urls, max_workers=parallel_workers)
+                st.write(f"✅ Successfully analyzed {len(research_results)} sources")
+                time.sleep(1)
             
-            end_time = time.time()
-            research_time = end_time - start_time
+            # Phase 3: Intelligence Synthesis
+            with st.status("⚡ **Phase 3:** Intelligence Synthesis", expanded=True) as status:
+                st.write("Cross-referencing facts and generating insights...")
+                insights = agent.generate_insights(research_results, research_query)
+                verified_facts = agent.cross_reference_facts(research_results)
+                end_time = time.time()
+                st.write(f"✅ Research completed in {end_time - start_time:.1f} seconds")
         
-        # Display results with advanced visualizations
-        if research_results['sources']:
-            # Metrics dashboard
-            st.markdown("### 📊 Research Dashboard")
+        # Results Dashboard
+        if research_results:
+            st.markdown("---")
+            st.markdown("## 📊 IntelliSource Research Dashboard")
             
+            # Key metrics
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 st.markdown(f"""
                 <div class="metric-card">
-                    <h3>{len(research_results['sources'])}</h3>
+                    <h2>{len(research_results)}</h2>
                     <p>Sources Analyzed</p>
                 </div>
                 """, unsafe_allow_html=True)
             
             with col2:
-                avg_credibility = research_results['final_analysis']['average_credibility']
+                avg_cred = sum(r.get('credibility_score', 0) for r in research_results) / len(research_results)
                 st.markdown(f"""
                 <div class="metric-card">
-                    <h3>{avg_credibility:.1f}/100</h3>
+                    <h2>{avg_cred:.1f}</h2>
                     <p>Avg Credibility</p>
                 </div>
                 """, unsafe_allow_html=True)
             
             with col3:
+                total_words = sum(r.get('word_count', 0) for r in research_results)
                 st.markdown(f"""
                 <div class="metric-card">
-                    <h3>{research_time:.1f}s</h3>
-                    <p>Research Time</p>
+                    <h2>{total_words:,}</h2>
+                    <p>Words Analyzed</p>
                 </div>
                 """, unsafe_allow_html=True)
             
             with col4:
-                quality_score = research_results['research_quality_score']
                 st.markdown(f"""
                 <div class="metric-card">
-                    <h3>{quality_score:.1f}/100</h3>
-                    <p>Quality Score</p>
+                    <h2>{end_time - start_time:.1f}s</h2>
+                    <p>Processing Time</p>
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Credibility visualization
-            st.markdown("### 📈 Source Credibility Analysis")
+            # Insights Section
+            if insights:
+                st.markdown("### 🎯 Key Insights")
+                
+                # Research Quality Score
+                quality_score = insights.get('research_quality', 0)
+                st.markdown(f"""
+                <div class="insight-card">
+                    <h4>📈 Research Quality Score: {quality_score:.1f}/100</h4>
+                    <p>Overall assessment of research comprehensiveness and source reliability</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Source Consensus
+                consensus = insights.get('source_consensus', {})
+                if consensus:
+                    consensus_strength = consensus.get('consensus_strength', 0)
+                    high_cred_count = consensus.get('high_credibility_sources', 0)
+                    
+                    st.markdown(f"""
+                    <div class="insight-card">
+                        <h4>⚖️ Source Consensus: {consensus_strength:.1f}%</h4>
+                        <p>{high_cred_count} out of {len(research_results)} sources have high credibility scores (>70)</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Main Findings
+                findings = insights.get('main_findings', [])
+                if findings:
+                    st.markdown("### 🔍 Main Research Findings")
+                    
+                    for i, finding in enumerate(findings[:3]):  # Show top 3 findings
+                        credibility = finding.get('credibility', 0)
+                        cred_class = 'high-credibility' if credibility > 80 else 'medium-credibility' if credibility > 60 else 'low-credibility'
+                        
+                        st.markdown(f"""
+                        <div class="source-card">
+                            <h5>📋 Finding {i+1}</h5>
+                            <p>{finding['finding']}</p>
+                            <small><strong>Source:</strong> {finding['source']}</small><br>
+                            <small><strong>Credibility:</strong> {credibility:.1f}/100</small>
+                            <div class="credibility-bar {cred_class}" style="width: {credibility}%;"></div>
+                        </div>
+                        """, unsafe_allow_html=True)
             
-            credibility_data = []
-            for source in research_results['sources']:
-                domain = urlparse(source['url']).netloc
-                credibility_data.append({
-                    'Domain': domain,
-                    'Credibility Score': source['credibility_score'],
-                    'Word Count': source['word_count']
-                })
+            # Visualizations
+            st.markdown("### 📊 Research Analytics")
             
-            df = pd.DataFrame(credibility_data)
+            viz_col1, viz_col2 = st.columns(2)
             
-            col1, col2 = st.columns(2)
+            with viz_col1:
+                # Credibility Distribution
+                credibility_scores = [r.get('credibility_score', 0) for r in research_results]
+                
+                fig_cred = px.histogram(
+                    x=credibility_scores,
+                    nbins=10,
+                    title="Source Credibility Distribution",
+                    labels={'x': 'Credibility Score', 'y': 'Number of Sources'},
+                    color_discrete_sequence=['#667eea']
+                )
+                fig_cred.update_layout(
+                    showlegend=False,
+                    height=400,
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
+                st.plotly_chart(fig_cred, use_container_width=True)
             
-            with col1:
-                fig_credibility = px.bar(
-                    df, 
-                    x='Domain', 
-                    y='Credibility Score',
-                    title="Source Credibility Scores",
-                    color='Credibility Score',
+            with viz_col2:
+                # Content Quality vs Credibility
+                quality_scores = [r.get('content_quality', 0) for r in research_results]
+                domains = [r.get('domain', 'Unknown') for r in research_results]
+                
+                fig_scatter = px.scatter(
+                    x=credibility_scores,
+                    y=quality_scores,
+                    hover_data={'Domain': domains},
+                    title="Content Quality vs Credibility",
+                    labels={'x': 'Credibility Score', 'y': 'Content Quality'},
+                    color=credibility_scores,
                     color_continuous_scale='viridis'
                 )
-                fig_credibility.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_credibility, use_container_width=True)
-            
-            with col2:
-                fig_content = px.scatter(
-                    df,
-                    x='Word Count',
-                    y='Credibility Score',
-                    size='Word Count',
-                    hover_data=['Domain'],
-                    title="Content Depth vs Credibility"
+                fig_scatter.update_layout(
+                    height=400,
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)'
                 )
-                st.plotly_chart(fig_content, use_container_width=True)
+                st.plotly_chart(fig_scatter, use_container_width=True)
             
-            # Research summary
-            st.markdown("### 🧠 AI-Generated Research Summary")
-            
-            # Combine all summaries intelligently
-            all_summaries = [s['summary'] for s in research_results['sources'] if s.get('summary')]
-            combined_content = ' '.join(all_summaries)
-            
-            if combined_content:
-                final_summary = agent.ai_summarize(combined_content, research_query)
-                st.markdown(f"""
-                <div class="insight-box">
-                <h4>🎯 Key Findings</h4>
-                <p>{final_summary}</p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Detailed source analysis
-            st.markdown("### 📚 Detailed Source Analysis")
-            
-            for i, source in enumerate(research_results['sources'], 1):
-                with st.expander(f"📄 Source {i}: {source['title'][:60]}... (Credibility: {source['credibility_score']}/100)"):
-                    col1, col2 = st.columns([3, 1])
+            # Verified Facts Section
+            if verified_facts:
+                st.markdown("### ✅ Cross-Referenced Facts")
+                
+                fact_df = pd.DataFrame([
+                    {
+                        'Fact': fact,
+                        'Sources': len(data['sources']),
+                        'Avg Credibility': sum(r.get('credibility_score', 0) for r in research_results 
+                                             if r['url'] in data['sources']) / len(data['sources'])
+                    }
+                    for fact, data in verified_facts.items()
+                ])
+                
+                if not fact_df.empty:
+                    fact_df = fact_df.sort_values('Avg Credibility', ascending=False)
                     
-                    with col1:
-                        st.markdown(f"**URL:** {source['url']}")
-                        st.markdown(f"**Summary:** {source['summary']}")
+                    for _, row in fact_df.head(5).iterrows():
+                        cred = row['Avg Credibility']
+                        cred_class = 'high-credibility' if cred > 80 else 'medium-credibility' if cred > 60 else 'low-credibility'
                         
-                        if source.get('insights'):
-                            st.markdown("**Key Insights:**")
-                            for insight in source['insights']:
-                                st.markdown(f"• {insight}")
-                    
-                    with col2:
-                        st.metric("Words", source['word_count'])
-                        st.metric("Sentences", source['sentence_count'])
-                        st.metric("Credibility", f"{source['credibility_score']}/100")
+                        st.markdown(f"""
+                        <div class="source-card">
+                            <strong>{row['Fact']}</strong><br>
+                            <small>Verified across {row['Sources']} sources | Avg credibility: {cred:.1f}/100</small>
+                            <div class="credibility-bar {cred_class}" style="width: {cred}%;"></div>
+                        </div>
+                        """, unsafe_allow_html=True)
             
-            # Export functionality
-            if export_button:
+            # Detailed Source Analysis
+            st.markdown("### 📚 Source Analysis")
+            
+            # Sort by credibility
+            sorted_results = sorted(research_results, key=lambda x: x.get('credibility_score', 0), reverse=True)
+            
+            for i, result in enumerate(sorted_results):
+                with st.expander(f"🔍 Source {i+1}: {result.get('title', 'Unknown Title')} (Credibility: {result.get('credibility_score', 0):.1f}/100)"):
+                    
+                    col_info, col_summary = st.columns([1, 2])
+                    
+                    with col_info:
+                        st.markdown(f"**URL:** {result['url']}")
+                        st.markdown(f"**Domain:** {result.get('domain', 'Unknown')}")
+                        st.markdown(f"**Word Count:** {result.get('word_count', 0):,}")
+                        st.markdown(f"**Paragraphs:** {result.get('paragraph_count', 0)}")
+                        st.markdown(f"**Content Quality:** {result.get('content_quality', 0):.1f}/100")
+                        
+                        # Credibility breakdown
+                        cred_score = result.get('credibility_score', 0)
+                        if cred_score > 80:
+                            st.success(f"High Credibility: {cred_score:.1f}")
+                        elif cred_score > 60:
+                            st.warning(f"Medium Credibility: {cred_score:.1f}")
+                        else:
+                            st.error(f"Low Credibility: {cred_score:.1f}")
+                    
+                    with col_summary:
+                        st.markdown("**AI Summary:**")
+                        summary = result.get('ai_summary', 'No summary available')
+                        st.markdown(summary)
+                        
+                        # Key entities
+                        entities = result.get('key_entities', [])
+                        if entities:
+                            st.markdown("**Key Entities:**")
+                            entity_text = " • ".join(entities[:5])
+                            st.markdown(entity_text)
+            
+            # Export Options
+            st.markdown("---")
+            st.markdown("### 📤 Export Research")
+            
+            export_col1, export_col2, export_col3 = st.columns(3)
+            
+            with export_col1:
                 # Generate comprehensive report
                 report_data = {
-                    'research_query': research_query,
+                    'query': research_query,
                     'timestamp': datetime.now().isoformat(),
-                    'results': research_results,
-                    'configuration': {
-                        'depth': research_depth,
-                        'max_sources': max_sources,
-                        'analysis_focus': analysis_focus
-                    }
+                    'processing_time': f"{end_time - start_time:.1f} seconds",
+                    'sources_analyzed': len(research_results),
+                    'average_credibility': avg_cred,
+                    'insights': insights,
+                    'verified_facts': verified_facts,
+                    'sources': [
+                        {
+                            'title': r.get('title', ''),
+                            'url': r['url'],
+                            'credibility': r.get('credibility_score', 0),
+                            'summary': r.get('ai_summary', ''),
+                            'domain': r.get('domain', '')
+                        }
+                        for r in sorted_results
+                    ]
                 }
                 
-                st.download_button(
-                    label="📥 Download Research Report (JSON)",
-                    data=json.dumps(report_data, indent=2),
-                    file_name=f"research_report_{research_query.replace(' ', '_')}.json",
-                    mime="application/json"
-                )
-                
-                # Also generate markdown report
-                markdown_report = generate_markdown_report(research_results, research_query)
-                st.download_button(
-                    label="📝 Download Research Report (Markdown)",
-                    data=markdown_report,
-                    file_name=f"research_report_{research_query.replace(' ', '_')}.md",
-                    mime="text/markdown"
-                )
+                if st.button("📋 Generate Report", use_container_width=True):
+                    report_json = json.dumps(report_data, indent=2)
+                    st.download_button(
+                        label="📥 Download JSON Report",
+                        data=report_json,
+                        file_name=f"intellisource_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json",
+                        use_container_width=True
+                    )
+            
+            with export_col2:
+                # Export as CSV
+                if st.button("📊 Export CSV Data", use_container_width=True):
+                    df = pd.DataFrame([
+                        {
+                            'Title': r.get('title', ''),
+                            'URL': r['url'],
+                            'Domain': r.get('domain', ''),
+                            'Credibility Score': r.get('credibility_score', 0),
+                            'Content Quality': r.get('content_quality', 0),
+                            'Word Count': r.get('word_count', 0),
+                            'AI Summary': r.get('ai_summary', ''),
+                            'Key Entities': ', '.join(r.get('key_entities', []))
+                        }
+                        for r in research_results
+                    ])
+                    
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download CSV",
+                        data=csv,
+                        file_name=f"intellisource_sources_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+            
+            with export_col3:
+                # Share research
+                if st.button("🔗 Generate Share Link", use_container_width=True):
+                    # Create a hash for the research session
+                    research_hash = hashlib.md5(
+                        f"{research_query}{len(research_results)}{avg_cred}".encode()
+                    ).hexdigest()[:8]
+                    
+                    st.success(f"Research ID: {research_hash}")
+                    st.info("💡 Save this ID to reference this research session")
         
         else:
-            st.info("🔍 Enter a research topic and click 'Start Research' to begin autonomous analysis")
-    
-    # Footer with IntelliSource branding
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #666; padding: 2rem;">
-    <h3 style="color: #667eea; margin-bottom: 1rem;">🧠 IntelliSource</h3>
-    <p><strong>Advanced Autonomous AI Research Agent</strong></p>
-    <p>Built by <strong>Imaad Mahmood</strong> | Pakistan 🇵🇰</p>
-    <p style="font-size: 0.9rem; margin-top: 1rem;">
-    <a href="https://github.com/Imaad18/intellisource" target="_blank">📚 GitHub</a> • 
-    <a href="https://linkedin.com/in/imaad-mahmood" target="_blank">💼 LinkedIn</a> • 
-    <a href="https://kaggle.com/imaadmahmood" target="_blank">🏆 Kaggle</a>
-    </p>
-    <p style="font-size: 0.8rem; color: #999;">Autonomous • Intelligent • Comprehensive</p>
-    </div>
-    """, unsafe_allow_html=True)
+            st.error("❌ No valid sources found. Please try a different query or check your internet connection.")
+            
+            # Suggestions for improvement
+            st.markdown("### 💡 Suggestions:")
+            st.markdown("- Make your query more specific")
+            st.markdown("- Try different keywords")
+            st.markdown("- Check if the topic has recent coverage online")
 
-def generate_markdown_report(research_data, query):
-    """Generate a comprehensive markdown report"""
-    report = f"""# Autonomous Research Report: {query}
-Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-## Executive Summary
-This research was conducted autonomously by an AI agent, analyzing {len(research_data['sources'])} sources with an average credibility score of {research_data['final_analysis']['average_credibility']:.1f}/100.
-
-## Key Findings
-"""
-    
-    for insight in research_data['final_analysis']['key_insights'][:5]:
-        report += f"- {insight}\n"
-    
-    report += f"""
-## Source Analysis
-"""
-    
-    for i, source in enumerate(research_data['sources'], 1):
-        report += f"""
-### Source {i}: {source['title']}
-- **URL:** {source['url']}
-- **Credibility Score:** {source['credibility_score']}/100
-- **Summary:** {source['summary']}
-
-"""
-    
-    report += f"""
-## Research Quality Metrics
-- **Total Sources:** {len(research_data['sources'])}
-- **Average Credibility:** {research_data['final_analysis']['average_credibility']:.1f}/100
-- **Research Quality Score:** {research_data['research_quality_score']:.1f}/100
-- **High-Quality Sources:** {research_data['final_analysis']['high_credibility_sources']}
-
----
-*Generated by IntelliSource - Advanced Autonomous AI Research Agent*
-*Built by Imaad Mahmood | https://github.com/Imaad18/intellisource*
-"""
-    
-    return report
-
+# Run the application
 if __name__ == "__main__":
-    create_streamlit_app()
+    create_intellisource_app()
