@@ -1,3 +1,6 @@
+<img width="1920" height="911" alt="scrnli_0Cw51vklL6XPW2" src="https://github.com/user-attachments/assets/12a2b256-058e-4c11-b39a-da98657131a0" />
+
+
 # 🧠 IntelliSource: Advanced Autonomous AI Research Engine
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://intellisource-noeenn4ahy7vsvpe2kanwg.streamlit.app/)
@@ -320,7 +323,7 @@ IntelliSource welcomes contributions from researchers, developers, and AI enthus
 ### **Connect With Me**
 - **GitHub**: [github.com/Imaad18](https://github.com/Imaad18)
 - **LinkedIn**: [linkedin.com/in/imaad](https://linkedin.com/in/imaad)
-- **Email**: imaad.contact@gmail.com
+- **Email**: imaad18102004@gmail.com
 
 ---
 
