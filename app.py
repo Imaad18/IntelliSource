@@ -7,24 +7,27 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from transformers import pipeline
 import asyncio
-import aiohttp
 from datetime import datetime
 import re
 import json
 from urllib.parse import urljoin, urlparse
-import nltk
+import time
 from collections import Counter
 import networkx as nx
-import time
 
-# Download required NLTK data
+# Simple text processing without heavy ML dependencies
+import nltk
 try:
     nltk.download('punkt', quiet=True)
     nltk.download('stopwords', quiet=True)
+    from nltk.corpus import stopwords
+    from nltk.tokenize import sent_tokenize
+    STOPWORDS = set(stopwords.words('english'))
 except:
-    pass
+    # Fallback if NLTK fails
+    STOPWORDS = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might', 'must', 'shall', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them'}
+    sent_tokenize = lambda x: re.split(r'[.!?]+', x)
 
 class AdvancedResearchAgent:
     def __init__(self):
@@ -33,26 +36,46 @@ class AdvancedResearchAgent:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
         
-        # Initialize AI models
-        self.summarizer = None
-        self.sentiment_analyzer = None
-        self.init_ai_models()
-        
-        # Research metadata
+        # Initialize AI models (simplified for Streamlit Cloud)
         self.research_graph = nx.DiGraph()
         self.fact_database = {}
         self.source_credibility = {}
     
-    @st.cache_resource
-    def init_ai_models(_self):
-        """Initialize AI models with caching"""
-        try:
-            summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-            sentiment_analyzer = pipeline("sentiment-analysis")
-            return summarizer, sentiment_analyzer
-        except Exception as e:
-            st.error(f"Model loading error: {e}")
-            return None, None
+    def smart_summarize(self, content, focus_topic, max_sentences=3):
+        """Advanced summarization without heavy ML dependencies"""
+        sentences = sent_tokenize(content)
+        if not sentences:
+            return "No content to summarize."
+        
+        # Clean and score sentences
+        topic_words = set(focus_topic.lower().split()) - STOPWORDS
+        scored_sentences = []
+        
+        for sentence in sentences:
+            if len(sentence.strip()) < 20:
+                continue
+                
+            words = set(re.findall(r'\w+', sentence.lower())) - STOPWORDS
+            
+            # Multiple scoring factors
+            topic_score = len(words.intersection(topic_words))
+            length_score = min(len(words) / 20, 1)  # Prefer medium-length sentences
+            position_score = 1 / (sentences.index(sentence) + 1)  # Earlier sentences score higher
+            
+            # Look for key indicators
+            key_indicators = ['research', 'study', 'analysis', 'report', 'found', 'shows', 'indicates']
+            indicator_score = sum(1 for indicator in key_indicators if indicator in sentence.lower())
+            
+            total_score = topic_score * 3 + length_score + position_score * 0.5 + indicator_score
+            
+            if total_score > 0:
+                scored_sentences.append((total_score, sentence.strip()))
+        
+        # Sort and select best sentences
+        scored_sentences.sort(reverse=True)
+        selected_sentences = [sent[1] for sent in scored_sentences[:max_sentences]]
+        
+        return '. '.join(selected_sentences) if selected_sentences else "No relevant content found."
     
     def search_web(self, query, num_results=10):
         """Smart web search using multiple search engines"""
@@ -342,8 +365,8 @@ class AdvancedResearchAgent:
 def create_streamlit_app():
     """Advanced Streamlit interface"""
     st.set_page_config(
-        page_title="AI Research Agent Pro",
-        page_icon="🤖",
+        page_title="IntelliSource - AI Research Agent",
+        page_icon="🧠",
         layout="wide",
         initial_sidebar_state="expanded"
     )
