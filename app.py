@@ -36,46 +36,10 @@ class AdvancedResearchAgent:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
         
-        # Initialize AI models (simplified for Streamlit Cloud)
+        # Initialize research components
         self.research_graph = nx.DiGraph()
         self.fact_database = {}
         self.source_credibility = {}
-    
-    def smart_summarize(self, content, focus_topic, max_sentences=3):
-        """Advanced summarization without heavy ML dependencies"""
-        sentences = sent_tokenize(content)
-        if not sentences:
-            return "No content to summarize."
-        
-        # Clean and score sentences
-        topic_words = set(focus_topic.lower().split()) - STOPWORDS
-        scored_sentences = []
-        
-        for sentence in sentences:
-            if len(sentence.strip()) < 20:
-                continue
-                
-            words = set(re.findall(r'\w+', sentence.lower())) - STOPWORDS
-            
-            # Multiple scoring factors
-            topic_score = len(words.intersection(topic_words))
-            length_score = min(len(words) / 20, 1)  # Prefer medium-length sentences
-            position_score = 1 / (sentences.index(sentence) + 1)  # Earlier sentences score higher
-            
-            # Look for key indicators
-            key_indicators = ['research', 'study', 'analysis', 'report', 'found', 'shows', 'indicates']
-            indicator_score = sum(1 for indicator in key_indicators if indicator in sentence.lower())
-            
-            total_score = topic_score * 3 + length_score + position_score * 0.5 + indicator_score
-            
-            if total_score > 0:
-                scored_sentences.append((total_score, sentence.strip()))
-        
-        # Sort and select best sentences
-        scored_sentences.sort(reverse=True)
-        selected_sentences = [sent[1] for sent in scored_sentences[:max_sentences]]
-        
-        return '. '.join(selected_sentences) if selected_sentences else "No relevant content found."
     
     def search_web(self, query, num_results=10):
         """Smart web search using multiple search engines"""
